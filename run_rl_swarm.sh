@@ -57,12 +57,7 @@ ROOT_DIR="$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)"
 cleanup() {
     echo_green ">> Shutting down trainer..."
 
-    # Remove modal credentials if they exist
-    rm -r $ROOT_DIR/modal-login/temp-data/*.json 2> /dev/null || true
-
     # Kill all processes belonging to this script's process group
-    kill -- -$$ || true
-
     exit 0
 }
 
@@ -124,6 +119,11 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     echo "Please login to create an Ethereum Server Wallet"
     cd modal-login
     # Check if the yarn command exists; if not, install Yarn.
+    if [ -f ~/.zshrc ]; then
+        source ~/.zshrc
+    elif [ -f ~/.bashrc ]; then
+        source ~/.bashrc
+    fi
 
     # Node.js + NVM setup
     if ! command -v node > /dev/null 2>&1; then
@@ -147,9 +147,10 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
             echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
             sudo apt update && sudo apt install -y yarn
         else
-            echo "Yarn not found. Installing Yarn globally with npm (no profile edits)…"
-            # This lands in $NVM_DIR/versions/node/<ver>/bin which is already on PATH
-            npm install -g --silent yarn
+            echo "Yarn is not installed. Installing Yarn..."
+            curl -o- -L https://yarnpkg.com/install.sh | sh
+            echo 'export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"' >> ~/.zshrc
+            source ~/.zshrc
         fi
     fi
     yarn install
@@ -160,11 +161,11 @@ if [ "$CONNECT_TO_TESTNET" = true ]; then
     sleep 5
 
     # Try to open the URL in the default browser
-    if open http://localhost:3000 2> /dev/null; then
-        echo_green ">> Successfully opened http://localhost:3000 in your default browser."
-    else
-        echo ">> Failed to open http://localhost:3000. Please open it manually."
-    fi
+    #if open http://localhost:3000 2> /dev/null; then
+    #    echo_green ">> Successfully opened http://localhost:3000 in your default browser."
+    #else
+    #    echo ">> Failed to open http://localhost:3000. Please open it manually."
+    #fi
 
     cd ..
 
@@ -266,3 +267,11 @@ else
 fi
 
 wait  # Keep script running until Ctrl+C
+
+# Minimal .bashrc for PS1 variable
+if [ -z "$PS1" ]; then
+    PS1='\u@\h:\w\$ '
+fi
+
+# Basic PATH and environment setup
+export PATH=$PATH:/usr/local/bin
