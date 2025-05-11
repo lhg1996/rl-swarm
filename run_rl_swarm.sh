@@ -13,13 +13,13 @@ export CONNECT_TO_TESTNET
 export ORG_ID
 export HF_HUB_DOWNLOAD_TIMEOUT=120  # 2 minutes
 
-# 添加重启相关变量
+# Retry related variables
 RETRY_COUNT=0
-RETRY_DELAY=240  # 重启等待时间（秒）
+RETRY_DELAY=240  # Retry delay in seconds
 
-# Mac特定的内存优化设置
+# Mac-specific memory optimization settings
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    # Mac环境变量设置
+    # Mac environment variables
     export PYTORCH_ENABLE_MPS_FALLBACK=1
     export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
     export OMP_NUM_THREADS=2
@@ -28,9 +28,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     export NUMEXPR_NUM_THREADS=2
     export NUMEXPR_MAX_THREADS=2
     
-    # Mac上使用不同的内存限制方式
+    # Memory limiting for Mac
     export PYTORCH_MPS_ALLOCATOR_POLICY=delayed
-    export PYTORCH_MPS_ALLOCATOR_POLICY_MAX_ALLOCATION=4096  # 限制最大内存分配为6GB
+    export PYTORCH_MPS_ALLOCATOR_POLICY_MAX_ALLOCATION=4096  # Limit max memory allocation to 4GB
 fi
 
 # Check if public multi-address is given else set to default
@@ -54,7 +54,7 @@ SMALL_SWARM_CONTRACT="0x69C6e1D608ec64885E7b185d39b04B491a71768C"
 BIG_SWARM_CONTRACT="0x6947c6E196a48B77eFa9331EC1E3e45f3Ee5Fd58"
 
 # Will ignore any visible GPUs if set.
-CPU_ONLY=${CPU_ONLY:-""}
+CPU_ONLY=${CPU_ONLY:-"1"}
 
 # Set if successfully parsed from modal-login/temp-data/userData.json.
 ORG_ID=${ORG_ID:-""}
@@ -86,29 +86,29 @@ cleanup() {
     exit 0
 }
 
-# 添加检查和清理进程的函数
+# Function to check and cleanup existing processes
 check_and_cleanup_processes() {
-    echo_green ">> 检查并清理已存在的进程..."
+    echo_green ">> Checking and cleaning up existing processes..."
     if [ -f "$ROOT/swarm.pem" ]; then
-        echo_green ">> 检测到 swarm.pem 文件: $ROOT/swarm.pem"
+        echo_green ">> Found swarm.pem file: $ROOT/swarm.pem"
         for pid in $(lsof -t "$ROOT/swarm.pem" 2>/dev/null); do
-            echo_green ">> 检测到使用 swarm.pem 的进程: $pid"
+            echo_green ">> Found process using swarm.pem: $pid"
             if kill -9 $pid 2>/dev/null; then
-                echo_green ">> 成功终止进程: $pid"
+                echo_green ">> Successfully terminated process: $pid"
             fi
         done
         sleep 2
     fi
 
     for pid in $(pgrep -f "hivemind"); do
-        echo_green ">> 检测到 hivemind 相关进程: $pid"
+        echo_green ">> Found hivemind related process: $pid"
         if kill -9 $pid 2>/dev/null; then
-            echo_green ">> 成功终止进程: $pid"
+            echo_green ">> Successfully terminated process: $pid"
         fi
     done
     sleep 2
 
-    echo_green ">> 清理信号量..."
+    echo_green ">> Cleaning up semaphores..."
     for sem in $(ipcs -s | awk '{print $2}' | tail -n +3); do
         ipcrm -s $sem 2>/dev/null || true
     done
@@ -128,51 +128,23 @@ cat << "EOF"
 
 EOF
 
-# 自动设置连接选项
+# Automatically set connection to testnet
 CONNECT_TO_TESTNET=True
-echo_green ">> connecting to Testnet"
-
+echo_green ">> Connecting to Testnet"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    #macOS version
+    # macOS version
     SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
-    pc=${pc:-0.5}
+    pc=0.5
 else
-    #Linux version
-    while true; do
-        echo -en $GREEN_TEXT
-        read -p ">> Which swarm would you like to join (Math (A) or Math Hard (B))? [A/b] " ab
-        echo -en $RESET_TEXT
-        ab=${ab:-A}  # Default to "A" if the user presses Enter
-        case $ab in
-            [Aa]*)  USE_BIG_SWARM=false && break ;;
-            [Bb]*)  USE_BIG_SWARM=true && break ;;
-            *)  echo ">>> Please answer A or B." ;;
-    esac
-    done
-    if [ "$USE_BIG_SWARM" = true ]; then
-        SWARM_CONTRACT="$BIG_SWARM_CONTRACT"
-    else
-        SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
-    fi
-    while true; do
-        echo -en $GREEN_TEXT
-        read -p ">> How many parameters (in billions)? [0.5, 1.5, 7, 32, 72] " pc
-        echo -en $RESET_TEXT
-        pc=${pc:-0.5}  # Default to "0.5" if the user presses Enter
-        case $pc in
-            0.5 | 1.5 | 7 | 32 | 72) PARAM_B=$pc && break ;;
-            *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
-        esac
-    done
+    # Linux version - default to small swarm and 0.5B parameters
+    SWARM_CONTRACT="$SMALL_SWARM_CONTRACT"
+    pc=0.5
 fi
-
-
 
 # Run modal_login server.
 echo "Please login to create an Ethereum Server Wallet"
 cd modal-login
-# Check if the yarn command exists; if not, install Yarn.
 
 # Node.js + NVM setup
 if ! command -v node > /dev/null 2>&1; then
@@ -196,35 +168,34 @@ if ! command -v yarn > /dev/null 2>&1; then
         echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
         sudo apt update && sudo apt install -y yarn
     else
-        echo "Yarn not found. Installing Yarn globally with npm (no profile edits)…"
-        # This lands in $NVM_DIR/versions/node/<ver>/bin which is already on PATH
+        echo "Yarn not found. Installing Yarn globally with npm..."
         npm install -g --silent yarn
     fi
 fi
 
-echo "正在启动 modal-login 服务..."
+echo "Starting modal-login service..."
 mkdir -p modal-login/logs
 yarn install
-yarn dev > modal-login/logs/server.log 2>&1 & # Run in background and suppress output
+yarn dev > modal-login/logs/server.log 2>&1 &
 
-SERVER_PID=$!  # Store the process ID
+SERVER_PID=$!
 echo "Started server process: $SERVER_PID"
 sleep 3
 if ! ps -p $SERVER_PID > /dev/null; then
-    echo "警告: modal-login 服务启动失败，查看日志获取详细信息"
+    echo "Warning: modal-login service failed to start, check logs for details"
     cat modal-login/logs/server.log
-    echo "尝试重新启动服务..."
+    echo "Attempting to restart service..."
     yarn dev > modal-login/logs/server.log 2>&1 &
     SERVER_PID=$!
     sleep 3
     
     if ! ps -p $SERVER_PID > /dev/null; then
-        echo "错误: 无法启动 modal-login 服务，请检查依赖和配置"
+        echo "Error: Unable to start modal-login service, please check dependencies and configuration"
         exit 1
     fi
 fi
 
-echo "modal-login 服务成功启动，PID: $SERVER_PID"
+echo "modal-login service started successfully, PID: $SERVER_PID"
 
 # Try to open the URL in the default browser
 if open http://localhost:3000 2> /dev/null; then
@@ -237,7 +208,7 @@ cd ..
 
 echo_green ">> Waiting for modal userData.json to be created..."
 while [ ! -f "modal-login/temp-data/userData.json" ]; do
-    sleep 5  # Wait for 5 seconds before checking again
+    sleep 5
 done
 echo "Found userData.json. Proceeding..."
 
@@ -267,82 +238,45 @@ else
 fi
 
 pip_install() {
-    # 增加 pip 的超时和重试设置
     pip install --disable-pip-version-check -q -r "$1" --timeout 60 --retries 10 || {
-        echo_green ">> 第一次 pip 安装尝试失败，正在尝试使用阿里云镜像..."
+        echo_green ">> First pip install attempt failed, trying with Aliyun mirror..."
         pip install --disable-pip-version-check -q -r "$1" --timeout 60 --retries 10 --index-url https://mirrors.aliyun.com/pypi/simple/ || {
-            echo_green ">> 第二次 pip 安装尝试失败，正在尝试使用清华镜像..."
+            echo_green ">> Second pip install attempt failed, trying with Tsinghua mirror..."
             pip install --disable-pip-version-check -q -r "$1" --timeout 60 --retries 10 --index-url https://pypi.tuna.tsinghua.edu.cn/simple/
         }
     }
 }
 
-echo_green ">> Getting requirements..."
+echo_green ">> Installing requirements..."
 
 pip install --upgrade pip
 if [ -n "$CPU_ONLY" ] || ! command -v nvidia-smi &> /dev/null; then
     # CPU-only mode or no NVIDIA GPU found
+    echo_green ">> Using CPU mode"
     pip_install "$ROOT"/requirements-cpu.txt
-    CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml" # TODO: Fix naming.
+    CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
     GAME="gsm8k"
+    export CUDA_VISIBLE_DEVICES=""
+    CPU_ONLY="1"
 else
-    echo_green ">> 检测到 NVIDIA GPU"
-    echo_green "请选择运行模式: 1. GPU 模式 2. CPU 模式"
-    echo "----------------------------------------"
-    read -p "请输入选项 (1 或 2): " MODE
-
-    if [ "$MODE" == "1" ]; then
-        # NVIDIA GPU found
-        pip_install "$ROOT"/requirements-gpu.txt
-        pip install flash-attn --no-build-isolation
-
-        case "$PARAM_B" in
-            32 | 72) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-bnb-4bit-deepseek-r1.yaml" && break ;;
-            0.5 | 1.5 | 7) CONFIG_PATH="$ROOT/hivemind_exp/configs/gpu/grpo-qwen-2.5-${PARAM_B}b-deepseek-r1.yaml" && break ;;
-            *)  echo ">>> Please answer in [0.5, 1.5, 7, 32, 72]." ;;
-        esac
-        if [ "$USE_BIG_SWARM" = true ]; then
-            GAME="dapo"
-        else
-            GAME="gsm8k"
-        fi
-    elif [ "$MODE" == "2" ]; then
-        echo_green ">> 使用 CPU 模式"
-        CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
-        export CUDA_VISIBLE_DEVICES=""
-        CPU_ONLY=${CPU_ONLY:-"1"}
-    else
-        echo_green ">> 无效选项，默认使用 CPU 模式"
-        CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
-        export CUDA_VISIBLE_DEVICES=""
-        CPU_ONLY=${CPU_ONLY:-"1"}
-    fi
-
-   
+    # NVIDIA GPU found - still default to CPU mode
+    echo_green ">> NVIDIA GPU detected but defaulting to CPU mode"
+    pip_install "$ROOT"/requirements-cpu.txt
+    CONFIG_PATH="$ROOT/hivemind_exp/configs/mac/grpo-qwen-2.5-0.5b-deepseek-r1.yaml"
+    GAME="gsm8k"
+    export CUDA_VISIBLE_DEVICES=""
+    CPU_ONLY="1"
 fi
 
-echo_green ">> Done!"
+echo_green ">> Installation complete!"
 
 HUGGINGFACE_ACCESS_TOKEN="None"
-# HF_TOKEN=${HF_TOKEN:-""}
-# if [ -n "${HF_TOKEN}" ]; then # Check if HF_TOKEN is already set and use if so. Else give user a prompt to choose.
-#     HUGGINGFACE_ACCESS_TOKEN=${HF_TOKEN}
-# else
-#     echo -en $GREEN_TEXT
-#     read -p ">> Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N] " yn
-#     echo -en $RESET_TEXT
-#     yn=${yn:-N} # Default to "N" if the user presses Enter
-#     case $yn in
-#         [Yy]*) read -p "Enter your Hugging Face access token: " HUGGINGFACE_ACCESS_TOKEN ;;
-#         [Nn]*) HUGGINGFACE_ACCESS_TOKEN="None" ;;
-#         *) echo ">>> No answer was given, so NO models will be pushed to Hugging Face Hub" && HUGGINGFACE_ACCESS_TOKEN="None" ;;
-#     esac
-# fi
 
 echo_green ">> Good luck in the swarm!"
 echo_blue ">> Post about rl-swarm on X/twitter! --> https://tinyurl.com/swarmtweet"
 echo_blue ">> And remember to star the repo on GitHub! --> https://github.com/gensyn-ai/rl-swarm"
 
+# Function to run training
 run_training() {
     if [ -n "$ORG_ID" ]; then
         python -m hivemind_exp.gsm8k.train_single_gpu \
@@ -364,21 +298,21 @@ run_training() {
     fi
 }
 
-# 主循环
+# Main training loop with retry logic
 while true; do
-    # 在开始训练前调用清理函数
+    # Clean up processes before starting training
     check_and_cleanup_processes
     echo_green ">> Starting training attempt $((RETRY_COUNT + 1))"
 
-    # 运行训练
-   if run_training; then
+    # Run training
+    if run_training; then
         echo_green ">> Training completed successfully"
     else
         echo_green ">> Training failed, will retry after $RETRY_DELAY seconds"
         sleep $RETRY_DELAY
     fi
 
-    # 增加重试计数
+    # Increment retry count
     RETRY_COUNT=$((RETRY_COUNT + 1))
 done
 
